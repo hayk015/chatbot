@@ -1,6 +1,36 @@
 // Serverless API route for Vercel and local Node.js server
+let cachedWorkingModel = null;
+
+async function getAvailableChatModel(apiKey) {
+  if (cachedWorkingModel) return cachedWorkingModel;
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { "Authorization": `Bearer ${apiKey}` }
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const models = (json.data || []).map(m => m.id);
+    
+    // Filter for text chat models (exclude whisper, speech, guard rails)
+    const chatModels = models.filter(id => 
+      !id.includes("whisper") && 
+      !id.includes("guard") && 
+      !id.includes("orpheus") &&
+      !id.includes("safeguard")
+    );
+
+    if (chatModels.length > 0) {
+      cachedWorkingModel = chatModels[0];
+      return cachedWorkingModel;
+    }
+  } catch (e) {
+    console.error("Failed to fetch available models:", e);
+  }
+  return null;
+}
+
 module.exports = async function handler(req, res) {
-  // Set CORS headers
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -17,12 +47,14 @@ module.exports = async function handler(req, res) {
   let apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) {
     return res.status(500).json({
-      error: "GROQ_API_KEY is not configured. Please add your Groq API key in Vercel or your local .env file."
+      error: "GROQ_API_KEY is not configured. Please add your Groq API key in Vercel or your local .env.local file."
     });
   }
 
-  // Parse and sanitize model name
-  let model = (process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "") || "llama-3.1-8b-instant";
+  // Desired model or fallback to cached/default
+  let model = (process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "") 
+    || cachedWorkingModel 
+    || "openai/gpt-oss-20b";
 
   // Support both single message and conversation history array
   const body = req.body || {};
@@ -39,22 +71,37 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "No message was provided." });
   }
 
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  async function callGroq(targetModel) {
+    return await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: model,
+        model: targetModel,
         messages: messages,
         temperature: 0.7,
         max_tokens: 1024
       })
     });
+  }
 
-    const data = await response.json();
+  try {
+    let response = await callGroq(model);
+    let data = await response.json();
+
+    // If model does not exist or user has no access, auto-discover an active model
+    if (!response.ok && data.error?.message?.includes("does not exist or you do not have access")) {
+      console.log(`Model ${model} unavailable. Discovering available models...`);
+      const fallbackModel = await getAvailableChatModel(apiKey);
+      if (fallbackModel && fallbackModel !== model) {
+        console.log(`Retrying with discovered model: ${fallbackModel}`);
+        model = fallbackModel;
+        response = await callGroq(model);
+        data = await response.json();
+      }
+    }
 
     if (!response.ok) {
       const errorMsg = data.error?.message || "Failed to get response from Groq.";
