@@ -5,13 +5,13 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Use POST" });
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = (process.env.GROQ_API_KEY || "").trim();
   if (!apiKey) {
     return res.status(500).json({ error: "API key is not set on the server." });
   }
 
   // Which LLM to use: set GROQ_MODEL in Vercel, or fall back to the default below.
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const model = (process.env.GROQ_MODEL || "").trim() || "llama-3.1-8b-instant";
 
   const { message } = req.body || {};
   if (!message) {
