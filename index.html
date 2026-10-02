@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workshop Chatbot</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; }
+    #chat { border: 1px solid #ccc; border-radius: 8px; padding: 12px; min-height: 240px; margin-bottom: 12px; }
+    .you { color: #0a58ca; margin: 8px 0; }
+    .bot { color: #222; margin: 8px 0; }
+    form { display: flex; gap: 8px; }
+    input { flex: 1; padding: 10px; }
+    button { padding: 10px 16px; }
+  </style>
+</head>
+<body>
+  <h1>Workshop Chatbot</h1>
+  <p id="model" style="color:#666;font-size:14px;"></p>
+  <div id="chat"></div>
+  <form id="form">
+    <input id="msg" placeholder="Ask something..." autocomplete="off" required />
+    <button>Send</button>
+  </form>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const form = document.getElementById("form");
+    const input = document.getElementById("msg");
+
+    function add(cls, text) {
+      const p = document.createElement("p");
+      p.className = cls;
+      p.textContent = (cls === "you" ? "You: " : "Bot: ") + text;
+      chat.appendChild(p);
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      add("you", text);
+      input.value = "";
+      try {
+        // Browser talks to OUR server route, never to the AI provider directly
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+        add("bot", data.reply || data.error || "No reply");
+        if (data.model) {
+          document.getElementById("model").textContent = "Model in use: " + data.model + " (via Groq)";
+        }
+      } catch (err) {
+        add("bot", "Something went wrong.");
+      }
+    });
+  </script>
+</body>
+</html>
