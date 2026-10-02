@@ -90,7 +90,7 @@ const server = http.createServer(async (req, res) => {
 function startServer(port) {
   server.listen(port, () => {
     console.log(`\n🚀 Chatbot is running at http://localhost:${port}`);
-    console.log(`🔑 Using model: ${process.env.GROQ_MODEL || "llama-3.1-8b-instant"}`);
+    console.log(`🔑 Model setting: ${process.env.GROQ_MODEL || "auto-detect (openai/gpt-oss-20b)"}`);
     if (!process.env.GROQ_API_KEY) {
       console.log(`⚠️  Warning: GROQ_API_KEY is not set yet! Add it to .env.local or .env\n`);
     } else {
