@@ -1,21 +1,42 @@
-// Runs on Vercel's server, NOT in the browser.
-// The API key is read from an environment variable, never written in code.
-module.exports = async (req, res) => {
+// Serverless API route for Vercel and local Node.js server
+module.exports = async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Use POST" });
+    return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const apiKey = (process.env.GROQ_API_KEY || "").trim();
+  // Parse and sanitize API key
+  let apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) {
-    return res.status(500).json({ error: "API key is not set on the server." });
+    return res.status(500).json({
+      error: "GROQ_API_KEY is not configured. Please add your Groq API key in Vercel or your local .env file."
+    });
   }
 
-  // Which LLM to use: set GROQ_MODEL in Vercel, or fall back to the default below.
-  const model = (process.env.GROQ_MODEL || "").trim() || "llama-3.1-8b-instant";
+  // Parse and sanitize model name
+  let model = (process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "") || "llama-3.1-8b-instant";
 
-  const { message } = req.body || {};
-  if (!message) {
-    return res.status(400).json({ error: "Message is required" });
+  // Support both single message and conversation history array
+  const body = req.body || {};
+  let messages = [];
+
+  if (Array.isArray(body.messages) && body.messages.length > 0) {
+    messages = body.messages.map(m => ({
+      role: m.role === "bot" || m.role === "assistant" ? "assistant" : "user",
+      content: String(m.content || "")
+    }));
+  } else if (body.message) {
+    messages = [{ role: "user", content: String(body.message) }];
+  } else {
+    return res.status(400).json({ error: "No message was provided." });
   }
 
   try {
@@ -23,21 +44,30 @@ module.exports = async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer " + apiKey
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model: model,
-        max_tokens: 300,
-        messages: [{ role: "user", content: message }]
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 1024
       })
     });
 
     const data = await response.json();
+
     if (!response.ok) {
-      return res.status(500).json({ error: data.error?.message || "AI request failed" });
+      const errorMsg = data.error?.message || "Failed to get response from Groq.";
+      return res.status(response.status).json({ error: errorMsg });
     }
-    return res.status(200).json({ reply: data.choices[0].message.content, model: data.model || model });
+
+    const reply = data.choices?.[0]?.message?.content || "No reply generated.";
+    return res.status(200).json({
+      reply: reply,
+      model: data.model || model
+    });
   } catch (err) {
-    return res.status(500).json({ error: "Server error" });
+    console.error("Chat error:", err);
+    return res.status(500).json({ error: "Internal server error connecting to AI provider." });
   }
 };
