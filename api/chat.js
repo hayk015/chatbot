@@ -48,16 +48,40 @@ module.exports = async function handler(req, res) {
     return res.status(200).end();
   }
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed. Use POST." });
-  }
-
   // Parse and sanitize API key
   let apiKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) {
     return res.status(500).json({
       error: "GROQ_API_KEY is not configured. Please add your Groq API key in Vercel or your local .env.local file."
     });
+  }
+
+  // GET: return available models dynamically from Groq
+  if (req.method === "GET") {
+    try {
+      const resModels = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { "Authorization": `Bearer ${apiKey}` }
+      });
+      if (!resModels.ok) {
+        return res.status(resModels.status).json({ error: "Failed to fetch models from Groq." });
+      }
+      const json = await resModels.json();
+      const rawList = (json.data || []).map(m => m.id);
+      const chatModels = rawList.filter(id => 
+        !id.includes("whisper") && 
+        !id.includes("guard") && 
+        !id.includes("orpheus") &&
+        !id.includes("safeguard") &&
+        !id.includes("allam")
+      );
+      return res.status(200).json({ models: chatModels, all: rawList });
+    } catch (e) {
+      return res.status(500).json({ error: e.message || "Failed to load models." });
+    }
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed. Use GET or POST." });
   }
 
   // Support both single message and conversation history array

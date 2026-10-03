@@ -355,6 +355,35 @@
     // Conversation history to maintain context
     let history = [];
 
+    // Load live available models from Groq on startup
+    async function loadAvailableModels() {
+      try {
+        const res = await fetch("/api/chat");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.models && data.models.length > 0) {
+          const currentVal = modelSelect.value;
+          modelSelect.innerHTML = "";
+          data.models.forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m;
+            modelSelect.appendChild(opt);
+          });
+          // Restore user selection or select first preferred
+          if (data.models.includes(currentVal)) {
+            modelSelect.value = currentVal;
+          } else {
+            const best = data.models.find(m => m.includes("llama-3.3") || m.includes("llama-3.1") || m.includes("70b") || m.includes("8b"));
+            if (best) modelSelect.value = best;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load dynamic models from Groq:", err);
+      }
+    }
+    loadAvailableModels();
+
     // Auto-expand textarea
     userInput.addEventListener("input", function() {
       this.style.height = "auto";
