@@ -61,9 +61,19 @@ module.exports = async function handler(req, res) {
   }
 
   // Desired model or fallback to cached/default
-  let model = (process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "") 
-    || cachedWorkingModel 
-    || "llama-3.3-70b-versatile";
+  let rawModel = (process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "").toLowerCase();
+  
+  // Normalize common typos (e.g. "3.1 -8b", "llama 3.1 8b", "3.1-8b")
+  let model;
+  if (!rawModel || rawModel.includes("allam")) {
+    model = cachedWorkingModel || "llama-3.3-70b-versatile";
+  } else if (rawModel.includes("8b") || rawModel.includes("3.1")) {
+    model = "llama-3.1-8b-instant";
+  } else if (rawModel.includes("70b") || rawModel.includes("3.3")) {
+    model = "llama-3.3-70b-versatile";
+  } else {
+    model = rawModel;
+  }
 
   // Support both single message and conversation history array
   const body = req.body || {};
