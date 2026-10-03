@@ -6,7 +6,15 @@
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": ["chatbot", "groq", "ai"],
+  "keywords": [
+    "chatbot",
+    "groq",
+    "ai"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/groq": "^4.0.54",
+    "ai": "^7.0.127"
+  }
 }

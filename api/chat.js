@@ -11,12 +11,21 @@ async function getAvailableChatModel(apiKey) {
     const json = await res.json();
     const models = (json.data || []).map(m => m.id);
     
-    // Filter for text chat models (exclude whisper, speech, guard rails)
+    // Prioritize popular English models over alphabetical fallback (like allam)
+    const preferred = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+    const foundPreferred = preferred.find(p => models.includes(p));
+    if (foundPreferred) {
+      cachedWorkingModel = foundPreferred;
+      return cachedWorkingModel;
+    }
+
+    // Filter for text chat models (exclude whisper, speech, guard rails, arabic allam)
     const chatModels = models.filter(id => 
       !id.includes("whisper") && 
       !id.includes("guard") && 
       !id.includes("orpheus") &&
-      !id.includes("safeguard")
+      !id.includes("safeguard") &&
+      !id.includes("allam")
     );
 
     if (chatModels.length > 0) {
@@ -54,7 +63,7 @@ module.exports = async function handler(req, res) {
   // Desired model or fallback to cached/default
   let model = (process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "") 
     || cachedWorkingModel 
-    || "openai/gpt-oss-20b";
+    || "llama-3.3-70b-versatile";
 
   // Support both single message and conversation history array
   const body = req.body || {};
