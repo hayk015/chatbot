@@ -60,21 +60,6 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // Desired model or fallback to cached/default
-  let rawModel = (process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "").toLowerCase();
-  
-  // Normalize common typos (e.g. "3.1 -8b", "llama 3.1 8b", "3.1-8b")
-  let model;
-  if (!rawModel || rawModel.includes("allam")) {
-    model = cachedWorkingModel || "llama-3.3-70b-versatile";
-  } else if (rawModel.includes("8b") || rawModel.includes("3.1")) {
-    model = "llama-3.1-8b-instant";
-  } else if (rawModel.includes("70b") || rawModel.includes("3.3")) {
-    model = "llama-3.3-70b-versatile";
-  } else {
-    model = rawModel;
-  }
-
   // Support both single message and conversation history array
   const body = req.body || {};
   let messages = [];
@@ -88,6 +73,25 @@ module.exports = async function handler(req, res) {
     messages = [{ role: "user", content: String(body.message) }];
   } else {
     return res.status(400).json({ error: "No message was provided." });
+  }
+
+  // Desired model from request body, environment variable, or fallback
+  let rawModel = (body.model || process.env.GROQ_MODEL || "").trim().replace(/^["']|["']$/g, "").toLowerCase();
+  
+  // Normalize common typos (e.g. "3.1 -8b", "llama 3.1 8b", "3.1-8b")
+  let model;
+  if (!rawModel || rawModel.includes("allam")) {
+    model = cachedWorkingModel || "llama-3.1-8b-instant";
+  } else if (rawModel.includes("8b") || rawModel.includes("3.1")) {
+    model = "llama-3.1-8b-instant";
+  } else if (rawModel.includes("70b") || rawModel.includes("3.3")) {
+    model = "llama-3.3-70b-versatile";
+  } else if (rawModel.includes("120b")) {
+    model = "openai/gpt-oss-120b";
+  } else if (rawModel.includes("20b")) {
+    model = "openai/gpt-oss-20b";
+  } else {
+    model = rawModel;
   }
 
   async function callGroq(targetModel) {

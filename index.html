@@ -74,13 +74,26 @@
       font-weight: 600;
     }
 
-    .model-tag {
-      font-size: 0.75rem;
+    .model-select {
+      font-size: 0.8rem;
       color: var(--accent);
       background: rgba(56, 189, 248, 0.1);
-      padding: 3px 8px;
-      border-radius: 12px;
-      border: 1px solid rgba(56, 189, 248, 0.2);
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .model-select:hover, .model-select:focus {
+      border-color: var(--accent);
+    }
+
+    .model-select option {
+      background-color: var(--card-bg);
+      color: var(--text);
     }
 
     .btn-clear {
@@ -301,7 +314,12 @@
       <div>
         <h1>AI Chatbot</h1>
       </div>
-      <span class="model-tag" id="model-tag">Groq AI</span>
+      <select id="model-select" class="model-select" title="Choose AI Model">
+        <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B (Fast)</option>
+        <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Smart)</option>
+        <option value="openai/gpt-oss-120b">GPT-OSS 120B (Reasoning)</option>
+        <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+      </select>
     </div>
     <button class="btn-clear" id="btn-clear" title="Clear conversation">Clear</button>
   </header>
@@ -331,7 +349,7 @@
     const chatForm = document.getElementById("chat-form");
     const userInput = document.getElementById("user-input");
     const sendBtn = document.getElementById("send-btn");
-    const modelTag = document.getElementById("model-tag");
+    const modelSelect = document.getElementById("model-select");
     const btnClear = document.getElementById("btn-clear");
 
     // Conversation history to maintain context
@@ -428,7 +446,10 @@
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history })
+          body: JSON.stringify({ 
+            messages: history,
+            model: modelSelect ? modelSelect.value : undefined
+          })
         });
 
         const data = await res.json();
@@ -439,8 +460,16 @@
         } else {
           appendMessage("bot", data.reply);
           history.push({ role: "assistant", content: data.reply });
-          if (data.model) {
-            modelTag.textContent = data.model;
+          if (data.model && modelSelect) {
+            // If the model returned is not currently in the dropdown, add it dynamically
+            let optionExists = Array.from(modelSelect.options).some(opt => opt.value === data.model);
+            if (!optionExists) {
+              const newOpt = document.createElement("option");
+              newOpt.value = data.model;
+              newOpt.textContent = data.model;
+              modelSelect.appendChild(newOpt);
+            }
+            modelSelect.value = data.model;
           }
         }
       } catch (err) {
